@@ -31,47 +31,51 @@ def get_data(contest_id: int):
     players_table = pd.read_csv(f'https://dfyql-ro.sports.yahoo.com/v2/export/contestPlayers?contestId={contest_id}')[columns_to_keep]
     players_table["SD"] = np.nan # create an empty column for the standard deviation
 
+    print(players_table["SD"].isnull().values.any())
 
+    url = f'https://sports.yahoo.com/dailyfantasy/contest/{contest_id}/setlineup'
+    driver = webdriver.Chrome()
+    driver.get(url)
 
-    while players_table["SD"].isnull().values.any() is True:
+    accept_button = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable((By.ID, "didomi-notice-agree-button"))
+    )
+    accept_button.click()
 
-        url = f'https://sports.yahoo.com/dailyfantasy/contest/{contest_id}/setlineup'
-        driver = webdriver.Chrome()
-        driver.get(url)
+    driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
 
-        accept_button = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((By.ID, "didomi-notice-agree-button"))
-        )
-        accept_button.click()
+    time.sleep(10)
 
-        driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
+    table = driver.find_element(By.XPATH, '//*[@id="lineupSelection"]/div/div/div/table')
 
-        time.sleep(10)
+    time.sleep(10)
 
-        table = driver.find_element(By.XPATH, '//*[@id="lineupSelection"]/div/div/div/table')
+    rows = table.find_elements(By.CSS_SELECTOR, 'tr[data-tst^="player-row"]')
 
-        time.sleep(10)
+    time.sleep(10)
 
-        rows = table.find_elements(By.CSS_SELECTOR, 'tr[data-tst^="player-row"]')
+    for row in rows:
+        player_id = row.get_attribute('data-tst-player-id')
 
-        time.sleep(10)
+        stddev = row.find_element(By.CSS_SELECTOR, 'span[data-tst="player-stddev"]').text
 
-        for row in rows:
-            player_id = row.get_attribute('data-tst-player-id')
+        players_table.loc[players_table["ID"] == player_id, "SD"] = float(
+            stddev)  # match the correct SD to the correct player
 
-            stddev = row.find_element(By.CSS_SELECTOR, 'span[data-tst="player-stddev"]').text
-
-            players_table.loc[players_table["ID"] == player_id, "SD"] = float(
-                stddev)  # match the correct SD to the correct player
 
     players_table['FullName'] = players_table['First Name'] + ' ' + players_table['Last Name']
 
     players_table.drop(['First Name', 'Last Name'], axis=1, inplace=True)
-
 
     players_table = players_table[(players_table['Injury Status'] != "INJ") & (players_table['Injury Status'] != "GTD") & (players_table['Injury Status'] != "O")].reset_index(drop=True)
 
 
     # players_table.to_csv(f'{contest_id}.csv', index=False) # going to add option to save it
 
+
+
     return players_table
+
+
+
+print(get_data(15291130))
